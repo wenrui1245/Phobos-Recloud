@@ -15,7 +15,7 @@
 
 > - Modified by **[CrimRecya](https://github.com/CrimRecya)**
 > - Phobos-Recya平台仓库：**[Phobos-Mix / Mix-ECpack](https://github.com/CrimRecya/Phobos-Mix/tree/Mix-ECpack)**
-> - 本分支仓库：**[Phobos-Recya](https://github.com/wenrui1245/Phobos-Recya)**
+> - 本分支仓库：**[Phobos-Recloud](https://github.com/wenrui1245/Phobos-Recloud)**
 > - 公版地址：**[Phobos 官方文档](https://phobos.readthedocs.io/en/latest/#)**
 > - 公版仓库：**[Phobos-developers/Phobos](https://github.com/Phobos-developers/Phobos)**
 
