@@ -233,6 +233,8 @@ void PhobosToolTip::HelpText_Super(int swidx)
 
 // 鼠标悬浮在载具/建筑上时，在名称末尾追加载员清单（名称×数量）
 // 仅对自身、盟友或观战者显示，避免悬浮即可侦察敌方载员构成
+// HideCargoToolTip.Transport=yes 的类型不追加载员清单；
+// HideCargoToolTip.Passenger=yes 的类型作为乘客时不计入清单
 bool PhobosToolTip::HelpText_Object(ObjectClass* pObject, const wchar_t* pUIName)
 {
 	const auto pTechno = abstract_cast<TechnoClass*>(pObject);
@@ -246,9 +248,15 @@ bool PhobosToolTip::HelpText_Object(ObjectClass* pObject, const wchar_t* pUIName
 	if (!pCurrent || (!pCurrent->IsObserver() && pOwner != pCurrent && !pCurrent->IsAlliedWith(pOwner)))
 		return false;
 
+	if (TechnoTypeExt::Fetch(pTechno->GetTechnoType())->HideCargoToolTip_Transport)
+		return false;
+
 	std::vector<std::pair<TechnoTypeClass*, int>> counts;
 	auto AddCount = [&counts](TechnoTypeClass* pType)
 	{
+		if (TechnoTypeExt::Fetch(pType)->HideCargoToolTip_Passenger)
+			return;
+
 		auto it = std::find_if(counts.begin(), counts.end(),
 			[pType](const auto& pair) { return pair.first == pType; });
 		if (it != counts.end())

@@ -407,6 +407,11 @@ public:
 	TheaterSpecificSHP ShowCameo_CustomShape;
 	PhobosPCXFile ShowCameo_CustomPCX;
 
+	// 悬浮载员提示（ToolTip.Cargo）的单类型隐藏开关
+	// Passenger：该类型作为乘客时不显示在提示中；Transport：该类型作为载具/建筑时整条提示不追加载员清单
+	Valueable<bool> HideCargoToolTip_Passenger;
+	Valueable<bool> HideCargoToolTip_Transport;
+
 	Valueable<DisplayInfoType> SelectedInfo_UpperType;
 	Valueable<int> SelectedInfo_UpperIndex;
 	Valueable<ColorStruct> SelectedInfo_UpperColor;
@@ -1114,6 +1119,9 @@ public:
 		, ShowCameo_CustomPalette {}
 		, ShowCameo_CustomShape {}
 		, ShowCameo_CustomPCX {}
+
+		, HideCargoToolTip_Passenger { false }
+		, HideCargoToolTip_Transport { false }
 
 		, SelectedInfo_UpperType { DisplayInfoType::Shield }
 		, SelectedInfo_UpperIndex { 0 }

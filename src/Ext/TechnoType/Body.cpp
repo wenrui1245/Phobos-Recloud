@@ -2410,6 +2410,10 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	}
 	this->ShowCameo_CustomPCX.Read(&CCINIClass::INI_Art, pArtSection, "ShowCameo.CustomPCX");
 
+	// 悬浮载员提示（ToolTip.Cargo）的单类型隐藏开关
+	this->HideCargoToolTip_Passenger.Read(exINI, pSection, "HideCargoToolTip.Passenger");
+	this->HideCargoToolTip_Transport.Read(exINI, pSection, "HideCargoToolTip.Transport");
+
 	// Ares 0.2
 	this->RadarJamRadius.Read(exINI, pSection, "RadarJamRadius");
 	this->VoiceIFVRepair.Read(exINI, pSection, "VoiceIFVRepair");
@@ -2746,6 +2750,9 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->ShowCameo_CustomPalette)
 		.Process(this->ShowCameo_CustomShape)
 		.Process(this->ShowCameo_CustomPCX)
+
+		.Process(this->HideCargoToolTip_Passenger)
+		.Process(this->HideCargoToolTip_Transport)
 
 		.Process(this->SelectedInfo_UpperType)
 		.Process(this->SelectedInfo_UpperIndex)
