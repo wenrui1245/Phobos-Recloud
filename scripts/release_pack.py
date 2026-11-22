@@ -12,8 +12,9 @@
     prepare    校验占位小节 -> EX_PATCH 递增 -> 回填发布日期
     build      调 scripts/build_release.bat 构建 Release 并校验 dll 版本戳
     pack       组装 zip 到 Release/Phobos-v{版本}-Recloud{N}.zip
+    stage      询问文件夹名并在 Pack/ 下生成与 zip 同构的发布目录
     finish     开下一轮占位小节 -> git commit -> git tag
-    all        prepare -> build -> pack -> finish 一条龙
+    all        prepare -> build -> pack -> stage -> finish 一条龙
 
 约定:
     - VERSION_EX_PATCH = Recloud 发布号（RecloudN，历史沿革：RecloudN，2026.11 起后缀改为
@@ -34,6 +35,7 @@ import argparse
 import datetime
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -45,6 +47,7 @@ CHANGELOG = ROOT / '整合包说明' / '更新改动说明.md'
 DOCS_DIR = ROOT / '整合包说明'
 BUILD_SCRIPT = ROOT / 'scripts' / 'build_release.bat'
 RELEASE_DIR = ROOT / 'Release'
+PACK_DIR = ROOT / 'Pack'
 
 PLACEHOLDER_HEAD = re.compile(r'^### \d{4}\.X\.XX\b')
 VERSIONED_HEAD = re.compile(r'^### \d{4}\.\d')
@@ -168,6 +171,20 @@ def strip_placeholder_sections(text):
             continue
         out.append(l)
     return '\n'.join(out)
+
+
+def changelog_snapshot_bytes():
+    """返回发布用的 更新改动说明.md 字节内容：剔除占位小节，保持原 BOM/CRLF 习惯。"""
+    raw = CHANGELOG.read_bytes()
+    bom = raw.startswith(b'\xef\xbb\xbf')
+    crlf = b'\r\n' in raw
+    text = strip_placeholder_sections(raw.decode('utf-8-sig').replace('\r\n', '\n'))
+    if crlf:
+        text = text.replace('\n', '\r\n')
+    data = text.encode('utf-8')
+    if bom:
+        data = b'\xef\xbb\xbf' + data
+    return data
 
 
 # ---------- 子命令 ----------
@@ -331,15 +348,7 @@ def cmd_pack(args):
         if not f.exists():
             die(f'构建产物缺失: {f}（先跑 build）')
     # 更新改动说明.md 的 zip 快照：剔除占位小节后按原 BOM/CRLF 习惯编码
-    raw = CHANGELOG.read_bytes()
-    bom = raw.startswith(b'\xef\xbb\xbf')
-    crlf = b'\r\n' in raw
-    snap_text = strip_placeholder_sections(raw.decode('utf-8-sig').replace('\r\n', '\n'))
-    if crlf:
-        snap_text = snap_text.replace('\n', '\r\n')
-    snap = snap_text.encode('utf-8')
-    if bom:
-        snap = b'\xef\xbb\xbf' + snap
+    snap = changelog_snapshot_bytes()
     # 条目清单：dll/pdb 在前，整合包说明/ 内容平铺（子目录写 stored 目录条目，同参考包）
     items = [('file', dll, 'Phobos.dll'), ('file', pdb, 'Phobos.pdb')]
     seen_dirs = set()
@@ -381,6 +390,71 @@ def cmd_pack(args):
     info(f'已生成 {disp(out)} ({out.stat().st_size / 1024:.0f} KB), 共 {len(items)} 个条目:')
     for kind, _, arc in items:
         info(f'  {arc}' + ('' if kind == 'file' else '   (目录条目)'))
+
+
+def cmd_stage(args):
+    """在 Pack/ 下生成与 zip 同构的发布目录：Phobos.dll / Phobos.pdb / 整合包说明/。"""
+    v = read_version()
+    default_name = f'Phobos-Recya {recya(v)}'
+
+    name = args.name
+    if not name:
+        if args.dry_run:
+            name = default_name
+        else:
+            try:
+                name = input(f'请输入 Pack 文件夹名称（回车使用 {default_name}）: ').strip()
+            except EOFError:
+                name = ''
+            name = name or default_name
+
+    if not name or name in ('.', '..') or any(c in name for c in '\\/:*?"<>|'):
+        die(f'文件夹名称不合法: {name!r}')
+
+    target = PACK_DIR / name
+    dll, pdb = RELEASE_DIR / 'Phobos.dll', RELEASE_DIR / 'Phobos.pdb'
+    for f in (dll, pdb):
+        if not f.exists():
+            die(f'构建产物缺失: {f}（先跑 build）')
+
+    if args.dry_run:
+        info(f'[dry-run] 将生成 {disp(target)}:')
+        info('  Phobos.dll')
+        info('  Phobos.pdb')
+        for p in sorted(DOCS_DIR.rglob('*')):
+            if p.is_file():
+                info(f'  整合包说明/{p.relative_to(DOCS_DIR).as_posix()}')
+        return
+
+    if target.exists():
+        if not args.yes:
+            try:
+                ans = input(f'{disp(target)} 已存在，是否清空并重建？(y/N): ').strip().lower()
+            except EOFError:
+                ans = ''
+            if ans not in ('y', 'yes'):
+                die('已取消')
+        shutil.rmtree(target)
+
+    docs_target = target / '整合包说明'
+    docs_target.mkdir(parents=True)
+    shutil.copy2(dll, target / 'Phobos.dll')
+    shutil.copy2(pdb, target / 'Phobos.pdb')
+
+    for p in sorted(DOCS_DIR.rglob('*')):
+        if not p.is_file():
+            continue
+        dest = docs_target / p.relative_to(DOCS_DIR)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if p == CHANGELOG:
+            dest.write_bytes(changelog_snapshot_bytes())
+        else:
+            shutil.copy2(p, dest)
+
+    info(f'已生成 {disp(target)}:')
+    for p in sorted(target.rglob('*')):
+        if p.is_file():
+            info(f'  {p.relative_to(target).as_posix()}  ({p.stat().st_size / 1024:.0f} KB)')
 
 
 def cmd_finish(args):
@@ -427,10 +501,12 @@ def cmd_all(args):
     if args.dry_run:
         info('[dry-run] 跳过 build，后续仅打印计划')
         cmd_pack(args)
+        cmd_stage(args)
         cmd_finish(args)
         return
     cmd_build(args)
     cmd_pack(args)
+    cmd_stage(args)
     cmd_finish(args)
 
 
@@ -447,16 +523,21 @@ def main():
     p = sub.add_parser('mergeline', help='生成 upstream 合并 changelog 行')
     p.add_argument('--insert', action='store_true', help='幂等插入占位小节')
     for name, help_ in [('prepare', 'EX_PATCH 递增 + 日期回填'), ('build', 'Release 构建'),
-                        ('pack', '组装 zip'), ('finish', '开新占位小节 + commit + tag'),
-                        ('all', 'prepare->build->pack->finish')]:
+                        ('pack', '组装 zip'), ('stage', '在 Pack/ 下生成发布目录'),
+                        ('finish', '开新占位小节 + commit + tag'),
+                        ('all', 'prepare->build->pack->stage->finish')]:
         p = sub.add_parser(name, help=help_)
         p.add_argument('--dry-run', action='store_true', help='只打印将执行的动作')
+        if name in ('stage', 'all'):
+            p.add_argument('--name', default=None,
+                           help='Pack 文件夹名（省略时交互询问，默认 Phobos-Recya v{版本}-Recloud{N}）')
+            p.add_argument('--yes', action='store_true', help='目标文件夹已存在时直接清空重建')
         if name in ('finish', 'all'):
             p.add_argument('--extra', nargs='*', default=[], type=Path,
                            help='额外加入 commit 的文件（如 额外功能说明.md）')
     args = ap.parse_args()
     {'check': cmd_check, 'mergeline': cmd_mergeline, 'prepare': cmd_prepare,
-     'build': cmd_build, 'pack': cmd_pack, 'finish': cmd_finish,
+     'build': cmd_build, 'pack': cmd_pack, 'stage': cmd_stage, 'finish': cmd_finish,
      'all': cmd_all}[args.cmd](args)
 
 
