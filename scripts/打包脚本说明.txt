@@ -1,0 +1,2 @@
+cd c:\Users\lfzy\source\repos\Phobos-Mix
+python scripts/release_pack.py stage

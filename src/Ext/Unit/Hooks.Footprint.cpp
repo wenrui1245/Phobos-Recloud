@@ -23,11 +23,12 @@
 
 // The type INI is normally enough, but forcing at construction guarantees the
 // hull never inherits the vanilla Ship/Drive locomotor if Ares re-reads the
-// Locomotor key after the type extension is loaded. Hook after the initial
-// `mov eax, [esp+8]` (pType), before the FootClass base constructor runs.
+// Locomotor key after the type extension is loaded. The initial
+// `mov eax, [esp+8]` loads pOwner for the FootClass base constructor.
+// At this hook the prologue has not adjusted ESP, so pType is at [esp+4].
 DEFINE_HOOK(0x7353C4, UnitClass_Constructor_ForceFootprintLocomotion, 0x5)
 {
-	GET(UnitTypeClass*, pType, EAX);
+	GET_STACK(UnitTypeClass* const, pType, 0x4);
 
 	if (Footprint::IsMultiCell(pType))
 		pType->Locomotor = __uuidof(FootprintLocomotionClass);
