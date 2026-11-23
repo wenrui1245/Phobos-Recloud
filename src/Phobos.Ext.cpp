@@ -415,6 +415,7 @@ std::unordered_map<void*, std::weak_ptr<void>> SavegameGlobal::GlobalSharedRegis
 DEFINE_HOOK(0x67F7C8, LoadGame_Phobos_End, 0x5)
 {
 	Footprint::FixupAfterLoad();
+	AttachEffectClass::RebuildAutoDeathEffectsAfterLoad();
 	SavegameGlobal::ClearSharedRegistry();
 	return 0;
 }
