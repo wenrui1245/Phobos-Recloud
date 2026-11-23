@@ -162,6 +162,8 @@ void AttachEffectTypeClass::LoadFromINI(CCINIClass* pINI)
 	this->ExpireWeapon_TriggerOn.Read(exINI, pSection, "ExpireWeapon.TriggerOn");
 	this->ExpireWeapon_CumulativeOnlyOnce.Read(exINI, pSection, "ExpireWeapon.CumulativeOnlyOnce");
 	this->ExpireWeapon_UseInvokerAsOwner.Read(exINI, pSection, "ExpireWeapon.UseInvokerAsOwner");
+	this->AutoDeath_Behavior.Read(exINI, pSection, "AutoDeath.Behavior");
+	this->AutoDeath_VanishAnimation.Read(exINI, pSection, "AutoDeath.VanishAnimation");
 
 	this->FirepowerMultiplier.Read(exINI, pSection, "FirepowerMultiplier");
 	this->ArmorMultiplier.Read(exINI, pSection, "ArmorMultiplier");
@@ -379,6 +381,39 @@ void AttachEffectTypeClass::LoadFromStream(PhobosStreamReader& Stm)
 void AttachEffectTypeClass::SaveToStream(PhobosStreamWriter& Stm)
 {
 	this->Serialize(Stm);
+}
+
+namespace
+{
+	constexpr unsigned int AutoDeathSaveTail = 0x31444145u;
+}
+
+bool AttachEffectTypeClass::LoadGlobals(PhobosStreamReader& Stm)
+{
+	if (!Enumerable<AttachEffectTypeClass>::LoadGlobals(Stm) || !Stm.Success())
+		return false;
+	if (Stm.AtEndOfBlock())
+		return true;
+	if (!Stm.Expect(AutoDeathSaveTail))
+		return false;
+
+	for (const auto& pType : Array)
+		Stm.Process(pType->AutoDeath_Behavior).Process(pType->AutoDeath_VanishAnimation);
+	return Stm.Success();
+}
+
+bool AttachEffectTypeClass::SaveGlobals(PhobosStreamWriter& Stm)
+{
+	if (!Enumerable<AttachEffectTypeClass>::SaveGlobals(Stm) || !Stm.Success())
+		return false;
+	if (std::none_of(Array.begin(), Array.end(), [](const auto& pType) { return pType->AutoDeath_Behavior.isset(); }))
+		return true;
+
+	// The registry has one framed block; keep each legacy type record intact.
+	Stm.Expect(AutoDeathSaveTail);
+	for (const auto& pType : Array)
+		Stm.Process(pType->AutoDeath_Behavior).Process(pType->AutoDeath_VanishAnimation);
+	return Stm.Success();
 }
 
 // AE type-related enum etc. parsers

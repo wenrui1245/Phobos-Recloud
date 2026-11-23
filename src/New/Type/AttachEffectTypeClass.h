@@ -100,6 +100,8 @@ public:
 	Valueable<ExpireWeaponCondition> ExpireWeapon_TriggerOn;
 	Valueable<bool> ExpireWeapon_CumulativeOnlyOnce;
 	Valueable<bool> ExpireWeapon_UseInvokerAsOwner;
+	Nullable<AutoDeathBehavior> AutoDeath_Behavior;
+	ValueableVector<AnimTypeClass*> AutoDeath_VanishAnimation;
 	std::unique_ptr<TintTypeClass> Tint;
 	Valueable<double> FirepowerMultiplier;
 	Valueable<double> ArmorMultiplier;
@@ -252,6 +254,8 @@ public:
 	void LoadFromINI(CCINIClass* pINI);
 	void LoadFromStream(PhobosStreamReader& Stm);
 	void SaveToStream(PhobosStreamWriter& Stm);
+	static bool LoadGlobals(PhobosStreamReader& Stm);
+	static bool SaveGlobals(PhobosStreamWriter& Stm);
 
 	static void Clear()
 	{

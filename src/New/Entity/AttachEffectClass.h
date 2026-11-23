@@ -8,6 +8,8 @@ class AttachEffectClass
 {
 public:
 	static std::vector<AttachEffectClass*> Array;
+	static void ProcessAutoDeaths();
+	static void RebuildAutoDeathEffectsAfterLoad();
 
 	AttachEffectClass();
 

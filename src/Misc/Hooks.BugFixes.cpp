@@ -1,5 +1,6 @@
 #include <Ext/Unit/Footprint.h>
 #include <AircraftTrackerClass.h>
+#include <New/Entity/AttachEffectClass.h>
 #include <Interop/AircraftMission.h>
 #include <EventClass.h>
 #include <HoverLocomotionClass.h>
@@ -3567,6 +3568,9 @@ DEFINE_HOOK(0x55B5FF, LogicClass_AI_UpdateObjects, 0x5)
 	}
 
 	updateIdx = -1;
+	// Death can remove objects or run other effects. Settle after all Updates,
+	// including effects attached to units whose AI was skipped by freezing.
+	AttachEffectClass::ProcessAutoDeaths();
 	return SkipGameCode;
 }
 

@@ -1,11 +1,28 @@
 ﻿#include "AttachEffectClass.h"
 
+#include "AttachmentRuntime.h"
+
 #include <Ext/Anim/Body.h>
 #include <Ext/Techno/Body.h>
 #include <Ext/WeaponType/Body.h>
 #include <Ext/Foot/Body.h>
+#include <optional>
 
 std::vector<AttachEffectClass*> AttachEffectClass::Array;
+
+namespace
+{
+	std::vector<AttachEffectClass*> AutoDeathEffects;
+
+	void TrackAutoDeathEffect(AttachEffectClass* pEffect)
+	{
+		if (auto* registry = AttachmentRuntime::Lifetimes<AttachEffectClass>())
+		{
+			registry->Add(pEffect);
+			AutoDeathEffects.push_back(pEffect);
+		}
+	}
+}
 
 AttachEffectClass::AttachEffectClass()
 	: Type { nullptr }, Techno { nullptr }, InvokerHouse { nullptr }, Invoker { nullptr },
@@ -98,10 +115,16 @@ AttachEffectClass::AttachEffectClass(AttachEffectTypeClass* pType, TechnoClass* 
 		TechnoExt::Fetch(pInvoker)->AttachedEffectInvokerCount++;
 
 	AttachEffectClass::Array.emplace_back(this);
+	if (pType->AutoDeath_Behavior.isset())
+		TrackAutoDeathEffect(this);
 }
 
 AttachEffectClass::~AttachEffectClass()
 {
+	if (std::erase(AutoDeathEffects, this))
+		if (auto* registry = AttachmentRuntime::Lifetimes<AttachEffectClass>())
+			registry->Remove(this);
+
 	if (const auto& pTrail = this->LaserTrail)
 	{
 		const auto pTechnoExt = TechnoExt::Fetch(this->Techno);
@@ -130,6 +153,58 @@ AttachEffectClass::~AttachEffectClass()
 		if (auto const pInvokerExt = TechnoExt::TryFetch(this->Invoker))
 			pInvokerExt->AttachedEffectInvokerCount--;
 	}
+}
+
+void AttachEffectClass::RebuildAutoDeathEffectsAfterLoad()
+{
+	if (auto* registry = AttachmentRuntime::Lifetimes<AttachEffectClass>())
+		for (auto* pEffect : AutoDeathEffects)
+			registry->Remove(pEffect);
+
+	AutoDeathEffects.clear();
+	for (auto* pEffect : Array)
+		if (pEffect->Type && pEffect->Type->AutoDeath_Behavior.isset())
+			TrackAutoDeathEffect(pEffect);
+}
+
+void AttachEffectClass::ProcessAutoDeaths()
+{
+	if (AutoDeathEffects.empty())
+		return;
+
+	const auto active = [](AttachEffectClass* pEffect)
+	{
+		const auto pTarget = pEffect->Techno;
+		return pTarget && pTarget->IsAlive && pTarget->Health > 0 && pTarget->IsOnMap
+			&& !pTarget->InLimbo && pEffect->HasInitialized && pEffect->IsActive()
+			&& !pEffect->ShouldBeDiscarded && !pEffect->ShouldBeDiscardedNow();
+	};
+
+	std::vector<AttachEffectClass*> ready;
+	for (auto* pEffect : AutoDeathEffects)
+		if (active(pEffect))
+			ready.push_back(pEffect);
+
+	std::stable_sort(ready.begin(), ready.end(), [](const auto* lhs, const auto* rhs)
+	{
+		return lhs->Techno->UniqueID < rhs->Techno->UniqueID;
+	});
+
+	std::optional<DWORD> lastTarget;
+	if (auto* registry = AttachmentRuntime::Lifetimes<AttachEffectClass>())
+		registry->Run(ready, [&](AttachEffectClass* pEffect)
+		{
+			// A preceding death can remove the target or this effect.
+			if (!active(pEffect) || lastTarget == pEffect->Techno->UniqueID)
+				return;
+
+			const auto pType = pEffect->Type;
+			if (!pType->AutoDeath_Behavior.isset())
+				return;
+
+			lastTarget = pEffect->Techno->UniqueID;
+			TechnoExt::KillSelf(pEffect->Techno, pType->AutoDeath_Behavior.Get(), pType->AutoDeath_VanishAnimation);
+		});
 }
 
 void AttachEffectClass::PointerGotInvalid(void* ptr, bool removed)

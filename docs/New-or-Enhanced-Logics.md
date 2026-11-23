@@ -54,6 +54,8 @@ This page describes all the engine features that are either new and introduced b
     - `ExpireWeapon.TriggerOn` determines the exact conditions upon which the weapon is fired, defaults to `expire` which means only if the effect naturally expires.
     - `ExpireWeapon.CumulativeOnlyOnce`, if set to true, makes it so that `Cumulative=true` attached effects only detonate the weapon once period, instead of once per active instance. On `remove` and `expire` condition this means it will only detonate after last instance has expired or been removed.
     - `ExpireWeapon.UseInvokerAsOwner` can be used to set the house and TechnoType that created the effect (e.g firer of the weapon that applied it) as the weapon's owner & invoker instead of the object the effect is attached to.
+  - `AutoDeath.Behavior` applies auto-death to the attached object if the effect is active at the end of object updates. Use `kill` for normal death, `vanish` for direct removal, or `sell` to sell buildings with a buildup animation. Other objects use normal death when set to `sell`.
+    - `AutoDeath.VanishAnimation` optionally lists animations for `vanish`. One is selected at random when several are configured. Use `Duration=-1` to keep a one-time auto-death effect active until it is processed or removed.
   - `Tint.Color` & `Tint.Intensity` can be used to set a color tint effect and additive lighting increase/decrease on the object the effect is attached to, respectively.
     - `Tint.VisibleToHouses` can be used to control which houses can see the tint effect.
   - `FirepowerMultiplier`, `ArmorMultiplier`, `SpeedMultiplier` and `ROFMultiplier` can be used to modify the object's firepower, armor strength, movement speed and weapon reload rate, respectively.
@@ -159,6 +161,8 @@ ExpireWeapon=                                      ; WeaponType
 ExpireWeapon.TriggerOn=expire                      ; List of expire weapon trigger condition enumeration (none|expire|remove|death|discard|all)
 ExpireWeapon.CumulativeOnlyOnce=false              ; boolean
 ExpireWeapon.UseInvokerAsOwner=false               ; boolean
+AutoDeath.Behavior=                                ; enumeration (kill | vanish | sell), default not set
+AutoDeath.VanishAnimation=                         ; List of AnimationTypes for vanish
 Tint.Color=                                        ; integer - Red,Green,Blue
 Tint.Intensity=                                    ; floating point value
 Tint.VisibleToHouses=all                           ; List of Affected House Enumeration (none|owner/self|allies/ally|team|enemies/enemy|neutral|all)
