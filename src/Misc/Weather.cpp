@@ -3336,8 +3336,7 @@ int Weather_Draw(void)
  * 已知偏差: 天气画在 DrawOnTop 之后, 会覆盖战术区内的 UI 覆盖层 (左下角消息
  * 列表、告示文字) 少量像素; 侧栏与对话框在 ViewBounds 之外不受影响。暂停在
  * 对话框消息循环时天气静止一拍, 无碍。
- * SaveShot 的挂接由 Phobos-Mix 侧统一处理, 这里只负责: 跳帧判断 ->
- * 天气绘制。 */
+ * SaveShot 复用该钩点定时刷新战场截图。 */
 
 DEFINE_HOOK(0x4F450F, Weather_AfterMap, 0x6)
 {
@@ -3346,7 +3345,7 @@ DEFINE_HOOK(0x4F450F, Weather_AfterMap, 0x6)
 	if (!Unsorted::ScenarioStarted)
 		return 0;
 
-	/* 0) 存档缩略图的兜底取图（还没有任何缓存时每秒补一张）。 */
+	/* 0) 定时刷新战场截图缓存。 */
 	SaveShot_Tick();
 
 	/* 2) 复刻 Phobos 的跳帧判断 (Hooks.UI.cpp GScreenClass_DrawOnTop_Start):
