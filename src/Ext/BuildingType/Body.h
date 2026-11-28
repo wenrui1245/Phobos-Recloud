@@ -16,6 +16,7 @@ public:
 
 public:
 	Valueable<AffectedHouse> PowersUp_Owner;
+	Nullable<int> Engineer_CaptureDelay;
 	ValueableVector<BuildingTypeClass*> PowersUp_Buildings;
 	ValueableIdxVector<SuperWeaponTypeClass> SuperWeapons;
 

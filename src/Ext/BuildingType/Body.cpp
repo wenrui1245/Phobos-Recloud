@@ -1396,6 +1396,9 @@ void BuildingTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	char tempBuffer[0x20];
 
 	this->PowersUp_Owner.Read(exINI, pSection, "PowersUp.Owner");
+	this->Engineer_CaptureDelay.Read(exINI, pSection, "Engineer.CaptureDelay");
+	if (this->Engineer_CaptureDelay.isset())
+		Debug::Log("EngineerCapture: revision=5 building=%s delay=%d source=building.\n", pSection, this->Engineer_CaptureDelay.Get());
 	this->PowersUp_Buildings.Read(exINI, pSection, "PowersUp.Buildings");
 	this->AutoUpgrade.Read(exINI, pSection, "AutoUpgrade");
 	this->PowerPlant_DamageFactor.Read(exINI, pSection, "PowerPlant.DamageFactor");
@@ -1687,6 +1690,7 @@ void BuildingTypeExt::Serialize(T& Stm)
 {
 	Stm
 		.Process(this->PowersUp_Owner)
+		.Process(this->Engineer_CaptureDelay)
 		.Process(this->PowersUp_Buildings)
 		.Process(this->AutoUpgrade)
 		.Process(this->PowerPlant_DamageFactor)

@@ -6,11 +6,19 @@
 #include <Surface.h>
 #include <Drawing.h>
 #include <CellSpread.h>
+#include <Ext/BuildingType/Body.h>
 
 InfantryExt::ExtContainer InfantryExt::ExtMap;
 
 namespace
 {
+int CaptureDelayFor(InfantryTypeExt* engineer, BuildingClass* target)
+{
+	const auto building = BuildingTypeExt::Fetch(target->Type);
+	return building ? building->Engineer_CaptureDelay.Get(engineer->Engineer_CaptureDelay.Get())
+		: engineer->Engineer_CaptureDelay.Get();
+}
+
 void ReportCaptureState(InfantryClass* unit, BuildingClass* target, const char* phase, int remaining)
 {
 	static unsigned reports = 0;
@@ -56,7 +64,8 @@ void InfantryExt::UpdateCaptureDelay()
 		return;
 	}
 	if (!unit->IsAlive || unit->Health <= 0 || unit->InLimbo || !unit->Type->Engineer
-		|| this->GetTypeExtData()->Engineer_CaptureDelay <= 0 || !target->IsAlive || target->Health <= 0 || target->InLimbo
+		|| !target->IsAlive || target->Health <= 0 || target->InLimbo
+		|| CaptureDelayFor(this->GetTypeExtData(), target) <= 0
 		|| unit->Owner != this->EngineerCaptureOwner || target->Owner != this->EngineerCaptureTargetOwner
 		|| unit->Owner->IsAlliedWith(target->Owner) || !unit->Locomotor || unit->Deactivated || unit->IsUnderEMP()
 		|| unit->IsImmobilized || unit->TemporalTargetingMe || unit->BeingWarpedOut || FootExt::CannotMove(unit, true))
@@ -93,14 +102,16 @@ bool InfantryExt::HoldForCaptureDelay()
 	if (this->EngineerCaptureTarget)
 		return this->EngineerCaptureTimer.GetTimeLeft() > 0;
 	auto const unit = this->OwnerObject();
-	const int delay = this->GetTypeExtData()->Engineer_CaptureDelay;
-	if (delay <= 0 || !unit->Type->Engineer || unit->CurrentMission != Mission::Capture
+	if (!unit->Type->Engineer || unit->CurrentMission != Mission::Capture
 		|| !unit->Locomotor || unit->Deactivated || unit->IsUnderEMP() || unit->IsImmobilized
 		|| unit->TemporalTargetingMe || unit->BeingWarpedOut || FootExt::CannotMove(unit, true))
 		return false;
 	auto const target = abstract_cast<BuildingClass*>(unit->Destination ? unit->Destination : unit->Target);
 	if (!target || target->InLimbo || !target->IsAlive || target->Health <= 0 || unit->Owner->IsAlliedWith(target->Owner)
 		|| target->Type->BridgeRepairHut)
+		return false;
+	const int delay = CaptureDelayFor(this->GetTypeExtData(), target);
+	if (delay <= 0)
 		return false;
 	// Inspect the locomotor's immediate next step, not its remote destination.
 	const auto head = unit->Locomotor->Head_To_Coord();
@@ -122,7 +133,9 @@ bool InfantryExt::HoldForCaptureDelay()
 	if (reports < 64)
 	{
 		++reports;
-		Debug::Log("EngineerCapture: revision=4 start unit=%u target=%u delay=%d.\n", unit->UniqueID, target->UniqueID, delay);
+		const auto building = BuildingTypeExt::Fetch(target->Type);
+		Debug::Log("EngineerCapture: revision=5 start unit=%u target=%u delay=%d source=%s.\n", unit->UniqueID, target->UniqueID, delay,
+			building && building->Engineer_CaptureDelay.isset() ? "building" : "engineer");
 	}
 	ReportCaptureState(unit, target, "start", delay);
 	return true;
