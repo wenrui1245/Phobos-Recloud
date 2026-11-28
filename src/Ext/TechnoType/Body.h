@@ -347,6 +347,7 @@ public:
 	Valueable<AffectedHouse> RevengeWeapon_AffectsHouse;
 
 	AEAttachInfoTypeClass AttachEffects;
+	ValueableVector<AttachEffectTypeClass*> PassengerAttachEffects;
 
 	Nullable<bool> RecountBurst;
 

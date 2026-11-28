@@ -498,7 +498,7 @@ static bool __fastcall TechnoClass_Limbo_Wrapper(TechnoClass* pThis)
 		auto const attachEffect = it->get();
 		auto const pType = attachEffect->GetType();
 
-		if ((pType->DiscardOn & DiscardCondition::Entry) != DiscardCondition::None)
+		if (!attachEffect->IsPassengerGranted() && (pType->DiscardOn & DiscardCondition::Entry) != DiscardCondition::None)
 		{
 			if (pType->RequiresRecalculation)
 				requiresRecalc = true;

@@ -79,7 +79,9 @@ public:
 		return true;
 	}
 
-	bool IsSelfOwned() const { return this->SelfOwned; }
+	bool IsSelfOwned() const { return this->Origin == AttachmentOrigin::Self; }
+	bool IsPassengerGranted() const { return this->Origin == AttachmentOrigin::Passenger; }
+	void SetPassengerInvoker(TechnoClass* pPassenger);
 	bool HasExpired() const { return this->Delay >= 0 ? false : !this->Duration; }
 	bool ShouldBeDiscardedNow();
 	bool IsFromSource(TechnoClass* pInvoker, AbstractClass* pSource) const { return pInvoker == this->Invoker && pSource == this->Source; }
@@ -100,7 +102,7 @@ public:
 	bool Load(PhobosStreamReader& Stm, bool RegisterForChange);
 	bool Save(PhobosStreamWriter& Stm) const;
 
-	static int Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachInfoTypeClass const& attachEffectInfo, bool selfOwned = false, bool hasDelay = false);
+	static int Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachInfoTypeClass const& attachEffectInfo, bool selfOwned = false, bool hasDelay = false, bool passengerGranted = false);
 	static int Detach(TechnoClass* pTarget, AEAttachInfoTypeClass const& attachEffectInfo);
 	static int DetachByGroups(TechnoClass* pTarget, AEAttachInfoTypeClass const& attachEffectInfo);
 	static void TransferAttachedEffects(TechnoClass* pSource, TechnoClass* pTarget);
@@ -111,7 +113,7 @@ private:
 	void AnimCheck();
 
 	static AttachEffectClass* CreateAndAttach(AttachEffectTypeClass* pType, TechnoClass* pTarget, TechnoTypeClass* pTargetType, std::vector<std::unique_ptr<AttachEffectClass>>& targetAEs, HouseClass* pInvokerHouse, TechnoClass* pInvoker,
-		AbstractClass* pSource, AEAttachParams const& attachInfo, bool selfOwned, bool& updateAnim, bool checkCumulative = true);
+		AbstractClass* pSource, AEAttachParams const& attachInfo, bool selfOwned, bool& updateAnim, bool checkCumulative = true, bool passengerGranted = false);
 
 	static int DetachTypes(TechnoClass* pTarget, AEAttachInfoTypeClass const& attachEffectInfo, std::vector<AttachEffectTypeClass*> const& types);
 	static int RemoveAllOfType(AttachEffectTypeClass* pType, TechnoClass* pTarget, int minCount, int maxCount, bool& updateAnim);
@@ -141,7 +143,9 @@ private:
 	int LastDiscardCheckFrame;
 	bool LastDiscardCheckValue;
 	bool LastActiveStat;
-	bool SelfOwned;
+	// Keep the values of the former SelfOwned boolean for save compatibility.
+	enum class AttachmentOrigin : unsigned char { External = 0, Self = 1, Passenger = 2 };
+	AttachmentOrigin Origin;
 	LaserTrailClass* LaserTrail;
 	Sequence LastSequenceCheck;
 

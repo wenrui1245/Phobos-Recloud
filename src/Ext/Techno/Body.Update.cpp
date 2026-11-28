@@ -1161,12 +1161,28 @@ void TechnoExt::UpdateRearmInTemporal()
 // Updates state of all AttachEffects on techno.
 void TechnoExt::UpdateAttachEffects()
 {
-	if (!this->AttachedEffects.size())
+	auto const pThis = this->OwnerObject();
+	auto const pFirstPassenger = pThis->Passengers.NumPassengers > 0 && pThis->WhatAmI() != AbstractType::Building
+		? pThis->Passengers.GetFirstPassenger() : nullptr;
+
+	if (pThis->InLimbo || pThis->IsImmobilized || (!pFirstPassenger && this->AttachedEffects.empty()))
 		return;
 
-	auto const pThis = this->OwnerObject();
+	std::vector<std::pair<AttachEffectTypeClass*, FootClass*>> passengerGrants;
 
-	if (pThis->InLimbo || pThis->IsImmobilized)
+	for (auto pPassenger = pFirstPassenger; pPassenger; pPassenger = abstract_cast<FootClass*>(pPassenger->NextObject))
+	{
+		if (!pPassenger->IsAlive || pPassenger->Health <= 0)
+			continue;
+
+		for (auto const pType : TechnoExt::Fetch(pPassenger)->TypeExtData->PassengerAttachEffects)
+		{
+			if (pType)
+				passengerGrants.emplace_back(pType, pPassenger);
+		}
+	}
+
+	if (passengerGrants.empty() && this->AttachedEffects.empty())
 		return;
 
 	const bool inTunnel = this->IsInTunnelState() || this->IsBurrowedState();
@@ -1180,12 +1196,36 @@ void TechnoExt::UpdateAttachEffects()
 	for (it = this->AttachedEffects.begin(); it != this->AttachedEffects.end(); )
 	{
 		auto const attachEffect = it->get();
-
-		if (!inTunnel)
-			attachEffect->SetAnimationTunnelState(true);
-
-		attachEffect->AI();
 		auto const pType = attachEffect->GetType();
+		bool lostPassenger = false;
+
+		if (attachEffect->IsPassengerGranted())
+		{
+			const auto pInvoker = attachEffect->GetInvoker();
+			const auto providesEffect = [pType](const auto& grant) { return grant.first == pType; };
+			const auto current = std::find_if(passengerGrants.begin(), passengerGrants.end(), [&](const auto& grant)
+			{
+				return providesEffect(grant) && grant.second == pInvoker;
+			});
+
+			if (current == passengerGrants.end())
+			{
+				const auto replacement = pType->Cumulative ? passengerGrants.end()
+					: std::find_if(passengerGrants.begin(), passengerGrants.end(), providesEffect);
+				lostPassenger = replacement == passengerGrants.end();
+
+				if (!lostPassenger)
+					attachEffect->SetPassengerInvoker(replacement->second);
+			}
+		}
+
+		if (!lostPassenger)
+		{
+			if (!inTunnel)
+				attachEffect->SetAnimationTunnelState(true);
+
+			attachEffect->AI();
+		}
 
 		if (attachEffect->ShouldRecalculateStats)
 		{
@@ -1205,7 +1245,7 @@ void TechnoExt::UpdateAttachEffects()
 		const bool hasExpired = attachEffect->HasExpired();
 		const bool shouldDiscard = attachEffect->IsActiveIgnorePowered() && attachEffect->ShouldBeDiscardedNow();
 
-		if (hasExpired || shouldDiscard)
+		if (hasExpired || shouldDiscard || lostPassenger)
 		{
 			attachEffect->ShouldBeDiscarded = false;
 
@@ -1221,12 +1261,14 @@ void TechnoExt::UpdateAttachEffects()
 			if (pType->Cumulative && pType->CumulativeAnimations.size() > 0)
 				cumulativeAnimTypes.insert(pType);
 
-			if (hasExpired)
+			if (lostPassenger)
+				attachEffect->AddExpireWeaponParams(ExpireWeaponCondition::Remove, expireWeapons);
+			else if (hasExpired)
 				attachEffect->AddExpireWeaponParams(ExpireWeaponCondition::Expire, expireWeapons);
 			else if (shouldDiscard)
 				attachEffect->AddExpireWeaponParams(ExpireWeaponCondition::Discard, expireWeapons);
 
-			if (shouldDiscard && attachEffect->ResetIfRecreatable())
+			if (!lostPassenger && shouldDiscard && attachEffect->ResetIfRecreatable())
 			{
 				++it;
 				continue;
@@ -1258,6 +1300,23 @@ void TechnoExt::UpdateAttachEffects()
 	if (requiresUpdateAnim)
 		this->UpdateAEAnimDrawingLogic();
 
+	AEAttachInfoTypeClass passengerAttachInfo;
+
+	for (const auto& [pType, pPassenger] : passengerGrants)
+	{
+		const bool alreadyAttached = std::any_of(this->AttachedEffects.begin(), this->AttachedEffects.end(), [&](const auto& effect)
+		{
+			return effect->GetType() == pType && (!pType->Cumulative
+				|| (effect->IsPassengerGranted() && effect->GetInvoker() == pPassenger));
+		});
+
+		if (alreadyAttached)
+			continue;
+
+		passengerAttachInfo.AttachTypes.assign(1, pType);
+		AttachEffectClass::Attach(pThis, pPassenger->Owner, pPassenger, pPassenger, passengerAttachInfo, false, false, true);
+	}
+
 	auto const coords = pThis->GetCoords();
 
 	for (auto const& info : expireWeapons)
@@ -1285,7 +1344,7 @@ void TechnoExt::UpdateSelfOwnedAttachEffects()
 		const bool isValid = EnumFunctions::IsTechnoEligible(pThis, pType->AffectsTarget, true)
 			&& (pType->AffectTypes.empty() || pType->AffectTypes.Contains(pTechnoType)) && !pType->IgnoreTypes.Contains(pTechnoType);
 		const bool allowTransfer = pType->AllowTransfer_Convert.Get(pType->AllowTransfer.Get(!attachEffect->IsSelfOwned()));
-		const bool remove = !isValid || (!allowTransfer && !pTypeExt->AttachEffects.AttachTypes.Contains(pType));
+		const bool remove = !isValid || (!attachEffect->IsPassengerGranted() && !allowTransfer && !pTypeExt->AttachEffects.AttachTypes.Contains(pType));
 
 		if (remove)
 		{

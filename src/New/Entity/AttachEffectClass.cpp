@@ -36,7 +36,7 @@ AttachEffectClass::AttachEffectClass()
 	, ShouldUpdateAnim { false }
 	, LastDiscardCheckFrame { -1 }
 	, LastDiscardCheckValue { false }
-	, SelfOwned { false }
+	, Origin { AttachmentOrigin::External }
 	, LastSequenceCheck { Sequence::Nothing }
 	, FiringCount { 0 }
 	, ReceivedDamageCount { 0 }
@@ -47,7 +47,7 @@ AttachEffectClass::AttachEffectClass()
 
 AttachEffectClass::AttachEffectClass(AttachEffectTypeClass* pType, TechnoClass* pTechno, HouseClass* pInvokerHouse,
 	TechnoClass* pInvoker, AbstractClass* pSource, bool selfOwned, int durationOverride, int delay, int initialDelay, int recreationDelay)
-	: Type { pType }, Techno { pTechno }, InvokerHouse { pInvokerHouse }, Invoker { pInvoker }, Source { pSource }, SelfOwned { selfOwned },
+	: Type { pType }, Techno { pTechno }, InvokerHouse { pInvokerHouse }, Invoker { pInvoker }, Source { pSource }, Origin { selfOwned ? AttachmentOrigin::Self : AttachmentOrigin::External },
 	DurationOverride { durationOverride }, Delay { delay }, InitialDelay { initialDelay }, RecreationDelay { recreationDelay }
 	, Duration { 0 }
 	, CurrentDelay { 0 }
@@ -248,6 +248,9 @@ void AttachEffectClass::PointerGotInvalid(void* ptr, bool removed)
 				if (pTechno == pEffect->Invoker)
 				{
 					AnnounceInvalidPointer(pEffect->Invoker, ptr);
+
+					if (pEffect->IsPassengerGranted())
+						pEffect->Source = nullptr;
 
 					if ((pEffect->Type->DiscardOn & DiscardCondition::InvokerDie) != DiscardCondition::None)
 						pEffect->ShouldBeDiscarded = true;
@@ -630,8 +633,35 @@ void AttachEffectClass::RefreshDuration(int durationOverride)
 	}
 }
 
+void AttachEffectClass::SetPassengerInvoker(TechnoClass* pPassenger)
+{
+	if (this->Invoker == pPassenger)
+		return;
+
+	if (this->Invoker)
+	{
+		if (auto const pOldExt = TechnoExt::TryFetch(this->Invoker))
+			pOldExt->AttachedEffectInvokerCount--;
+	}
+
+	TechnoExt::Fetch(pPassenger)->AttachedEffectInvokerCount++;
+	this->Invoker = pPassenger;
+	this->Source = pPassenger;
+	this->InvokerHouse = pPassenger->Owner;
+
+	if (this->Animation && this->Type->Animation_UseInvokerAsOwner)
+	{
+		this->Animation->Owner = this->InvokerHouse;
+		AnimExt::Fetch(this->Animation)->SetInvoker(pPassenger, this->InvokerHouse);
+	}
+}
+
 bool AttachEffectClass::ShouldBeDiscardedNow()
 {
+	// Passenger grants follow the carrier's passenger list.
+	if (this->IsPassengerGranted())
+		return !this->Invoker;
+
 	if (this->LastDiscardCheckFrame == Unsorted::CurrentFrame)
 		return this->LastDiscardCheckValue;
 
@@ -870,7 +900,7 @@ bool AttachEffectClass::ShouldBeDiscardedNow()
 /// <param name="attachEffectInfo">AttachEffect attach info.</param>
 /// <param name="selfOwned">Whether the effect is owned by the Techno itself.</param>
 /// <returns>Number of AttachEffect instances created and attached.</returns>
-int AttachEffectClass::Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachInfoTypeClass const& attachEffectInfo, bool selfOwned, bool hasDelay)
+int AttachEffectClass::Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachInfoTypeClass const& attachEffectInfo, bool selfOwned, bool hasDelay, bool passengerGranted)
 {
 	auto const& types = attachEffectInfo.AttachTypes;
 
@@ -889,9 +919,12 @@ int AttachEffectClass::Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, T
 	for (size_t i = 0; i < types.size(); i++)
 	{
 		auto const pType = types[i];
-		auto const params = attachEffectInfo.GetAttachParams(i, hasDelay);
+		auto params = attachEffectInfo.GetAttachParams(i, hasDelay);
 
-		if (auto const pAE = AttachEffectClass::CreateAndAttach(pType, pTarget, pTargetType, pTargetExt->AttachedEffects, pInvokerHouse, pInvoker, pSource, params, selfOwned, requiresUpdateAnim))
+		if (passengerGranted)
+			params.DurationOverride = -1;
+
+		if (auto const pAE = AttachEffectClass::CreateAndAttach(pType, pTarget, pTargetType, pTargetExt->AttachedEffects, pInvokerHouse, pInvoker, pSource, params, selfOwned, requiresUpdateAnim, true, passengerGranted))
 		{
 			attachedCount++;
 
@@ -959,7 +992,7 @@ int AttachEffectClass::Attach(TechnoClass* pTarget, HouseClass* pInvokerHouse, T
 /// <param name="checkCumulative">Whether cumulative AE needs to be processed.</param>
 /// <returns>The created and attached AttachEffect if successful, nullptr if not.</returns>
 AttachEffectClass* AttachEffectClass::CreateAndAttach(AttachEffectTypeClass* pType, TechnoClass* pTarget, TechnoTypeClass* pTargetType, std::vector<std::unique_ptr<AttachEffectClass>>& targetAEs,
-	HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachParams const& attachParams, bool selfOwned, bool& updateAnim, bool checkCumulative)
+	HouseClass* pInvokerHouse, TechnoClass* pInvoker, AbstractClass* pSource, AEAttachParams const& attachParams, bool selfOwned, bool& updateAnim, bool checkCumulative, bool passengerGranted)
 {
 	if (!pType)
 		return nullptr;
@@ -994,6 +1027,9 @@ AttachEffectClass* AttachEffectClass::CreateAndAttach(AttachEffectTypeClass* pTy
 
 			if (!cumulative)
 			{
+				if (passengerGranted || attachEffect->IsPassengerGranted())
+					return nullptr;
+
 				const int duration = attachParams.DurationOverride ? attachParams.DurationOverride : pType->Duration;
 
 				if (attachParams.ReplaceLongerDuration || duration >= attachEffect->GetRemainingDuration())
@@ -1023,7 +1059,8 @@ AttachEffectClass* AttachEffectClass::CreateAndAttach(AttachEffectTypeClass* pTy
 				if (attachEffect->IsFromSource(pInvoker, pSource))
 					currentSourceCount++;
 
-				if (!attachParams.CumulativeRefreshSameSourceOnly || attachEffect->IsFromSource(pInvoker, pSource))
+				if (!passengerGranted && !attachEffect->IsPassengerGranted()
+					&& (!attachParams.CumulativeRefreshSameSourceOnly || attachEffect->IsFromSource(pInvoker, pSource)))
 				{
 					if (cumulativeMatches.empty())
 						cumulativeMatches.reserve(targetAEs.size());
@@ -1078,7 +1115,9 @@ AttachEffectClass* AttachEffectClass::CreateAndAttach(AttachEffectTypeClass* pTy
 				}
 			}
 
-			AttachEffectTypeClass::HandleEvent(pTarget);
+			if (!passengerGranted)
+				AttachEffectTypeClass::HandleEvent(pTarget);
+
 			return nullptr;
 		}
 		else if (attachParams.CumulativeRefreshAll && attachParams.CumulativeRefreshAll_OnAttach)
@@ -1093,6 +1132,9 @@ AttachEffectClass* AttachEffectClass::CreateAndAttach(AttachEffectTypeClass* pTy
 
 	targetAEs.emplace_back(std::make_unique<AttachEffectClass>(pType, pTarget, pInvokerHouse, pInvoker, pSource, selfOwned, attachParams.DurationOverride, attachParams.Delay, attachParams.InitialDelay, attachParams.RecreationDelay));
 	auto const pAE = targetAEs.back().get();
+
+	if (passengerGranted)
+		pAE->Origin = AttachmentOrigin::Passenger;
 
 	if (!currentTypeCount && cumulative && pType->CumulativeAnimations.size() > 0)
 		pAE->HasCumulativeAnim = true;
@@ -1241,7 +1283,7 @@ int AttachEffectClass::RemoveAllOfType(AttachEffectTypeClass* pType, TechnoClass
 
 		auto const attachEffect = it->get();
 
-		if (pType == attachEffect->Type)
+		if (pType == attachEffect->Type && !attachEffect->IsPassengerGranted())
 		{
 			detachedCount++;
 			attachEffect->AddExpireWeaponParams(ExpireWeaponCondition::Remove, expireWeapons, stackCount != 1);
@@ -1311,7 +1353,7 @@ void AttachEffectClass::TransferAttachedEffects(TechnoClass* pSource, TechnoClas
 		auto const attachEffect = it->get();
 		auto const type = attachEffect->GetType();
 
-		if (!type->AllowTransfer.Get(!attachEffect->IsSelfOwned()))
+		if (attachEffect->IsPassengerGranted() || !type->AllowTransfer.Get(!attachEffect->IsSelfOwned()))
 		{
 			++it;
 			continue;
@@ -1363,7 +1405,7 @@ void AttachEffectClass::TransferAttachedEffects(TechnoClass* pSource, TechnoClas
 
 		if (match)
 		{
-			if (!cumulative || (type->Cumulative_MaxCount >= 0 && currentTypeCount >= type->Cumulative_MaxCount))
+			if (!match->IsPassengerGranted() && (!cumulative || (type->Cumulative_MaxCount >= 0 && currentTypeCount >= type->Cumulative_MaxCount)))
 				match->Duration = Math::max(match->Duration, attachEffect->Duration);
 		}
 		else
@@ -1440,8 +1482,13 @@ void AttachEffectClass::AddExpireWeaponParams(ExpireWeaponCondition condition, s
 	if (!this->Type->ExpireWeapon || (this->Type->ExpireWeapon_TriggerOn & condition) == ExpireWeaponCondition::None)
 		return;
 
-	if (this->Type->Cumulative && this->Type->ExpireWeapon_CumulativeOnlyOnce && (ignoreCumulativeCountCheck || TechnoExt::Fetch(this->Techno)->GetAttachedEffectCumulativeCount(this->Type) >= 1))
-		return;
+	if (this->Type->Cumulative && this->Type->ExpireWeapon_CumulativeOnlyOnce)
+	{
+		const int ownActiveStack = this->IsPassengerGranted() && this->IsActive() ? 1 : 0;
+
+		if (ignoreCumulativeCountCheck || TechnoExt::Fetch(this->Techno)->GetAttachedEffectCumulativeCount(this->Type) > ownActiveStack)
+			return;
+	}
 
 	if (this->Type->ExpireWeapon_UseInvokerAsOwner)
 	{
@@ -1494,7 +1541,7 @@ bool AttachEffectClass::Serialize(T& Stm)
 		.Process(this->LaserTrail)
 		.Process(this->ShouldRecalculateStats)
 		.Process(this->ShouldUpdateAnim)
-		.Process(this->SelfOwned)
+		.Process(this->Origin)
 		.Process(this->LastSequenceCheck)
 		.Process(this->FiringCount)
 		.Process(this->ReceivedDamageCount)

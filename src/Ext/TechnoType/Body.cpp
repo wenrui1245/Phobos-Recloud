@@ -2303,6 +2303,7 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 
 	// Parasitic types
 	this->AttachEffects.LoadFromINI(pINI, pSection);
+	this->PassengerAttachEffects.Read(exINI, pSection, "Passenger.AttachEffect.AttachTypes");
 
 	auto [canParse, resetValue] = PassengerDeletionTypeClass::CanParse(exINI, pSection);
 
@@ -3069,6 +3070,7 @@ void TechnoTypeExt::Serialize(T& Stm)
 namespace
 {
 	constexpr unsigned CarrierTypeTag = 0x31545943; // CYT1
+	constexpr unsigned PassengerAttachEffectsTag = 0x31454150; // PAE1
 }
 
 template<typename T>
@@ -3127,6 +3129,9 @@ void TechnoTypeExt::LoadFromStream(PhobosStreamReader& Stm)
 	if (Stm.Peek(tag) && tag == CarrierTypeTag && Stm.Expect(CarrierTypeTag))
 		this->SerializeCarrier(Stm);
 
+	if (Stm.Peek(tag) && tag == PassengerAttachEffectsTag && Stm.Expect(PassengerAttachEffectsTag))
+		Stm.Process(this->PassengerAttachEffects);
+
 	if (!this->PsychicDetectable)
 		Phobos::Optimizations::DisablePsychicDetectable = false;
 }
@@ -3139,6 +3144,12 @@ void TechnoTypeExt::SaveToStream(PhobosStreamWriter& Stm)
 	{
 		Stm.Save(CarrierTypeTag);
 		this->SerializeCarrier(Stm);
+	}
+
+	if (!this->PassengerAttachEffects.empty())
+	{
+		Stm.Save(PassengerAttachEffectsTag);
+		Stm.Process(this->PassengerAttachEffects);
 	}
 }
 
