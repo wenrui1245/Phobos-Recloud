@@ -14,13 +14,13 @@ class CCINIClass;
 /* 读 [Phobos.SaveShot]（Phobos.ini 装载时由 OptionsClass_LoadSettings 调一次）。 */
 void SaveShot_LoadConfig(CCINIClass& ini);
 
-/* 兜底取图：Weather_AfterMap 每帧调，只在还没抓过图时每秒补一张。 */
+/* Weather_AfterMap 每帧调用，战场画面可用时每秒刷新截图缓存。 */
 void SaveShot_Tick();
 
-/* 对话框建立那一刻抓当前视口（0x4F1140，战场还没被菜单盖住）。 */
+/* 在首个对话框遮盖战场前刷新视口截图（0x4F1140）。 */
 void SaveShot_CaptureNow();
 
-/* 0x67CF42（StgCreateDocfileW 调用点）：记录存档路径，拆出目录与主名。 */
+/* 0x67CF42（StgCreateDocfileW 调用点）：记录存档路径，直接存档时刷新截图。 */
 void SaveShot_OnSaveBegin(void* pathPtr);
 
 /* 0x67D2F1（存档尾部）：成功则把当前缓存写成旁挂 BMP。 */

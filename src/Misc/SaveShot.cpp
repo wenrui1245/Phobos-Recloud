@@ -14,6 +14,7 @@
 #include <Surface.h>
 #include <Drawing.h>
 #include <BitFont.h>
+#include <Unsorted.h>
 #include <Utilities/Debug.h>
 #include <Phobos.h>
 
@@ -21,7 +22,7 @@
 
 /* ---------------- 常量 ---------------- */
 
-#define SS_TICK_MS   1000      /* 兜底取图间隔 */
+#define SS_TICK_MS   1000      /* 战场缓存刷新间隔 */
 #define SS_DEF_W     320       /* 缩略图宽（高度按视口比例） */
 #define SS_MIN_W     96
 #define SS_MAX_W     640
@@ -42,9 +43,6 @@
 #define SS_ID_LIST_SAVE 1319
 
 #define SS_NAME_MAX  64
-
-/* 场景已开局标志。YRpp 未命名（MOEx ADDR_SCEN_STARTED）。 */
-#define SS_SCEN_STARTED 0xA8ED5Cu
 
 /* ---------------- 状态 ---------------- */
 
@@ -420,53 +418,47 @@ static void SS_Capture()
 	if (dh < 1) dh = 1;
 	if (dh > dw * 2) dh = dw * 2;          /* 极端宽高比钳一下 */
 
-	s_Aspect = (int)(((long long)dh * 1000) / dw);
-	if (s_Aspect < 250) s_Aspect = 250;
-	if (s_Aspect > 2000) s_Aspect = 2000;
+	base = (unsigned char*)surf->Lock(0, 0);
+	if (!base) return;
 
 	if (!s_Pix || s_PixW != dw || s_PixH != dh)
 	{
-		if (s_Pix) VirtualFree(s_Pix, 0, MEM_RELEASE);
-		s_PixW = s_PixH = 0;
-		s_Pix = (unsigned short*)VirtualAlloc(NULL, (size_t)dw * dh * 2u,
+		auto pixels = (unsigned short*)VirtualAlloc(NULL, (size_t)dw * dh * 2u,
 			MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-		if (!s_Pix) return;
+		if (!pixels)
+		{
+			surf->Unlock();
+			return;
+		}
+		if (s_Pix) VirtualFree(s_Pix, 0, MEM_RELEASE);
+		s_Pix = pixels;
 		s_PixW = dw;
 		s_PixH = dh;
 	}
 
-	base = (unsigned char*)surf->Lock(0, 0);
-	if (!base) return;
 	SS_Shrink(s_Pix, dw, dh, base + (size_t)vy * pitch + (size_t)vx * 2, vw, vh, pitch, 0);
 	surf->Unlock();
+	s_Aspect = (int)(((long long)dh * 1000) / dw);
+	if (s_Aspect < 250) s_Aspect = 250;
+	if (s_Aspect > 2000) s_Aspect = 2000;
 	s_LastTick = GetTickCount();
 }
 
-/* 对话框建立那一刻的战场。调用点是 0x4F1140（引擎建好对话框、ShowWindow 之前）
- * —— 此时视口里还是刚渲染完的画面, 菜单一个像素都没画上去。之后再抓就晚了:
- * 菜单/对话框是画在 Composite 上的, 会正好盖住视口那块。 */
+/* 进入首个对话框前刷新战场截图。暂停菜单也会占用 Composite，
+ * 所以这里检查引擎的对话框计数，连同存/读档界面之外的父对话框一起判断。 */
 void SaveShot_CaptureNow()
 {
-	if (!s_Init || !s_Enable) return;
-	if (!*(volatile unsigned*)SS_SCEN_STARTED) return;   /* 未开局 */
-	/* 已经开着对话框时又建了子对话框: 画面里已经有菜单像素, 再抓就是拿菜单当
-	 * "当前画面"。只在"从无到有"那次抓。 */
-	if (s_Dlg && IsWindow((HWND)s_Dlg)) return;
-	if (!s_Pix)
-		SS_Capture();
+	if (!s_Init || !s_Enable || !Unsorted::ScenarioStarted) return;
+	if (Unsorted::WSDialogCount != 0 || (s_Dlg && IsWindow((HWND)s_Dlg))) return;
+	SS_Capture();
 }
 
-/* 只在本局还没抓过图时补一张兜底（Weather_AfterMap 每帧调）。 */
+/* 战场渲染期间定时更新缓存，供对话框和直接存档使用。 */
 void SaveShot_Tick()
 {
-	if (!s_Init || !s_Enable) return;
-	if (!*(volatile unsigned*)SS_SCEN_STARTED) return;
-	if (s_Dlg && IsWindow((HWND)s_Dlg)) return;             /* 存/读档界面开着 */
-	/* 正常路径由 SaveShot_CaptureNow 抓; 这里只补最开始那帧兜底
-	 * (没有它, 在"还没弹过任何对话框"之前存档就无图可写)。 */
-	if (s_Pix) return;
-	if (GetTickCount() - s_LastTick < SS_TICK_MS) return;
-	SS_Capture();
+	if (!Unsorted::TacticalActive || Game::SpecialDialog != 0) return;
+	if (s_Pix && GetTickCount() - s_LastTick < SS_TICK_MS) return;
+	SaveShot_CaptureNow();
 }
 
 /* ---------------- 落盘 ---------------- */
@@ -514,6 +506,10 @@ void SaveShot_OnSaveBegin(void* pathPtr)
 				Phobos::GetProgramDirectory().string().c_str(), dir);
 	}
 	SS_DefaultDir();
+
+	/* 快速存档等直接存档路径可以抓取最新战场，菜单存档沿用打开前的缓存。 */
+	if (Unsorted::TacticalActive && Game::SpecialDialog == 0)
+		SaveShot_CaptureNow();
 
 	SS_Log(wide ? "pathW " : "pathA ", path);
 }
