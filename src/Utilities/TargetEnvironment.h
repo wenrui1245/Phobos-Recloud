@@ -17,7 +17,9 @@ inline Kind Classify(TechnoClass* target) {
     return target?Classify(target,target->InWhichLayer()):Kind::Surface;
 }
 inline bool IsUnderground(TechnoClass* target) {return Classify(target)==Kind::Underground;}
-inline bool RejectWeapon(WeaponTypeClass* weapon,TechnoClass* target) {
+inline bool RejectWeapon(TechnoClass* firer,TechnoClass* target,WeaponTypeClass* weapon,int index) {
+    const int policy=UnderwaterInterop::AttackPolicy(firer,target,weapon,index);
+    if(policy>=0)return policy==0;
     return target && Classify(target)==Kind::Underwater && UnderwaterInterop::WeaponPolicy(weapon)==0;
 }
 inline bool RequiresAU(ObjectClass* object) {

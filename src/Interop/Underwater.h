@@ -6,6 +6,15 @@
 // different DLL's extension layout. Modules are loaded before tactical drawing;
 // no late injection/hot reload is supported by this cached consumer.
 namespace UnderwaterInterop {
+inline int AttackPolicy(TechnoClass* firer, TechnoClass* target, WeaponTypeClass* weapon, int index) {
+    using Query=int(__cdecl*)(TechnoClass*,TechnoClass*,WeaponTypeClass*,int);
+    static const Query query=[]() -> Query {
+        const auto module=GetModuleHandleA("Kaleidoscope.dll");
+        return module?reinterpret_cast<Query>(GetProcAddress(module,"Kaleidoscope_GetUnderwaterAttackPolicy")):nullptr;
+    }();
+    return query && target?query(firer,target,weapon,index):-1;
+}
+
 inline int WeaponPolicy(WeaponTypeClass* weapon) {
     using Query=int(__cdecl*)(WeaponTypeClass*);
     static const Query query=[]() -> Query {

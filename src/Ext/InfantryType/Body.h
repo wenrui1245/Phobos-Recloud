@@ -2,6 +2,7 @@
 
 #include <Ext/TechnoType/Body.h>
 #include <InfantryTypeClass.h>
+#include <Utilities/OptionalSavedShape.h>
 
 // Concrete leaf extension for InfantryTypeClass (empty).
 class InfantryTypeExt final : public TechnoTypeExt
@@ -27,6 +28,10 @@ public:
 	std::vector<std::vector<CoordStruct>> EliteDeployedWeaponBurstFLHs;
 	Nullable<bool> InfantryAutoDeploy;
 	Nullable<PartialVector2D<double>> IdleActionFrequency;
+	Valueable<int> Engineer_CaptureDelay { 0 };
+	Valueable<Point2D> Engineer_CaptureProgress_Offset { { 0, 0 } };
+	OptionalSavedShape Engineer_CaptureProgress_SHP { nullptr };
+	CustomPalette Engineer_CaptureProgress_Palette;
 
 	// Per-sequence animation rates read from the infantry's art section
 	std::vector<int> CustomSequenceRates;

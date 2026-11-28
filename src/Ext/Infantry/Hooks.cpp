@@ -7,6 +7,15 @@
 #include <GameOptionsClass.h>
 #include <Utilities/SequenceRates.h>
 
+// MOV ECX,[EBP+5A4h], after the movement-animation function's stack setup.
+// Hold only its animation/path refresh while capturing; native frame advancement
+// still runs in ProcessSequence. Resume at its unchanged, balanced epilogue.
+DEFINE_HOOK(0x520FAF, InfantryClass_UpdateMovingSequence_CaptureIdle, 0x6)
+{
+	GET(InfantryClass*, infantry, EBP);
+	return InfantryExt::Fetch(infantry)->PlayCaptureIdle() ? 0x52130D : 0;
+}
+
 DEFINE_HOOK(0x522BDF, InfantryClass_CanCheer_SlaveOwner, 0x6)
 {
 	enum { CannotCheer = 0x522BF8, CheckSequence = 0x522BE5 };

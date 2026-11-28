@@ -522,6 +522,26 @@ DEFINE_HOOK(0x737F05, UnitClass_ReceiveDamage_SinkingWake, 0x6)
 	return 0x737F0B;
 }
 
+// Walk::Process before PUSH 1 / LEA ECX,[ESI-4] (five complete bytes).
+// Holding skips only movement control and wake emission. The wake hook covers
+// 75AC93..75AC98, including MOV EAX,[ESI]. Replay that load and resume at 75AC99,
+// outside its patched bytes, preserving the native Is_Moving call and epilogue.
+DEFINE_HOOK(0x75AC85, WalkLocomotionClass_Process_EngineerCaptureDelay, 0x5)
+{
+	GET(ILocomotion*, loco, ESI);
+	auto const unit = static_cast<LocomotionClass*>(loco)->LinkedTo;
+	if (auto const infantry = specific_cast<InfantryClass*>(unit))
+	{
+		if (InfantryExt::Fetch(infantry)->HoldForCaptureDelay())
+		{
+			InfantryExt::Fetch(infantry)->PlayCaptureIdle();
+			R->EAX(*reinterpret_cast<const DWORD*>(loco));
+			return 0x75AC99;
+		}
+	}
+	return 0;
+}
+
 DEFINE_HOOK(0x75AC93, WalkLocomotionClass_Process_Wake, 0x6)
 {
 	GET(ILocomotion* const, pThis, ESI);

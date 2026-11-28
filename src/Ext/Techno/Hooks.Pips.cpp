@@ -1,9 +1,13 @@
 ﻿#include "Body.h"
 
+#include <Ext/Infantry/Body.h>
+
 DEFINE_HOOK_AGAIN(0x6D9134, TacticalClass_RenderLayers_DrawBefore, 0x5)// BuildingClass
 DEFINE_HOOK(0x6D9076, TacticalClass_RenderLayers_DrawBefore, 0x5)// FootClass
 {
 	GET(TechnoClass*, pTechno, ESI);
+	if (pTechno->WhatAmI() == AbstractType::Infantry)
+		InfantryExt::Fetch(static_cast<InfantryClass*>(pTechno))->DrawCaptureProgress(&DSurface::ViewBounds);
 
 	if (pTechno->IsSelected && Phobos::Config::EnableSelectBox)
 	{

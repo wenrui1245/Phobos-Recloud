@@ -17,6 +17,18 @@ public:
 	bool HasUndeployConverted;
 
 	bool RestartReloadTimer;
+	BuildingClass* EngineerCaptureTarget = nullptr;
+	HouseClass* EngineerCaptureOwner = nullptr;
+	HouseClass* EngineerCaptureTargetOwner = nullptr;
+	CDTimerClass EngineerCaptureTimer {};
+	int EngineerCaptureTotal = 0;
+	void ResetCaptureDelay();
+	void UpdateCaptureDelay();
+	bool HoldForCaptureDelay();
+	bool PlayCaptureIdle();
+	void DrawCaptureProgress(RectangleStruct* bounds);
+	using FootExt::OnDetach;
+	virtual void OnDetach(TechnoClass* target, bool removed) override;
 
 	explicit InfantryExt(InfantryClass* const OwnerObject) : FootExt(OwnerObject)
 		, SkipTargetChangeResetSequence { false }

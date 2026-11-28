@@ -1,6 +1,7 @@
 #include "Body.h"
 
 #include <Utilities/SequenceRates.h>
+#include <Utilities/Debug.h>
 
 InfantryTypeExt::ExtContainer InfantryTypeExt::ExtMap;
 
@@ -20,6 +21,12 @@ void InfantryTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	this->NotHuman_RandomDeathSequence.Read(exINI, pSection, "NotHuman.RandomDeathSequence");
 	this->ProneSpeed.Read(exINI, pSection, "ProneSpeed");
 	this->InfantryAutoDeploy.Read(exINI, pSection, "InfantryAutoDeploy");
+	this->Engineer_CaptureDelay.Read(exINI, pSection, "Engineer.CaptureDelay");
+	this->Engineer_CaptureProgress_Offset.Read(exINI, pSection, "Engineer.CaptureProgress.Offset");
+	this->Engineer_CaptureProgress_SHP.Read(exINI, pSection, "Engineer.CaptureProgress.SHP");
+	this->Engineer_CaptureProgress_Palette.LoadFromINI(pINI, pSection, "Engineer.CaptureProgress.Palette");
+	if (this->Engineer_CaptureDelay > 0)
+		Debug::Log("EngineerCapture: revision=3 type=%s delay=%d movement=walk custom-progress=%d.\n", pSection, this->Engineer_CaptureDelay.Get(), this->Engineer_CaptureProgress_SHP.Get() != nullptr);
 
 	const auto pArtINI = &CCINIClass::INI_Art;
 	INI_EX exArtINI(pArtINI);
@@ -77,6 +84,10 @@ void InfantryTypeExt::Serialize(T& Stm)
 		.Process(this->CustomSequenceRates)
 		.Process(this->CustomSequenceNormalized)
 		.Process(this->IdleActionFrequency)
+		.Process(this->Engineer_CaptureDelay)
+		.Process(this->Engineer_CaptureProgress_Offset)
+		.Process(this->Engineer_CaptureProgress_SHP)
+		.Process(this->Engineer_CaptureProgress_Palette)
 		;
 }
 

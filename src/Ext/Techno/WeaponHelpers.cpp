@@ -9,13 +9,10 @@ int TechnoExt::PickWeaponIndex(TechnoClass* pThis, TechnoClass* pTargetTechno, A
 {
 	auto pWeaponStructOne = pThis->GetWeapon(weaponIndexOne);
 	auto pWeaponStructTwo = pThis->GetWeapon(weaponIndexTwo);
-	if (pTargetTechno && TargetEnvironment::Classify(pTargetTechno) == TargetEnvironment::Kind::Underwater)
-	{
-		if (pWeaponStructOne && UnderwaterInterop::WeaponPolicy(pWeaponStructOne->WeaponType) == 0)
-			pWeaponStructOne = nullptr;
-		if (pWeaponStructTwo && UnderwaterInterop::WeaponPolicy(pWeaponStructTwo->WeaponType) == 0)
-			pWeaponStructTwo = nullptr;
-	}
+	if (pWeaponStructOne && TargetEnvironment::RejectWeapon(pThis, pTargetTechno, pWeaponStructOne->WeaponType, weaponIndexOne))
+		pWeaponStructOne = nullptr;
+	if (pWeaponStructTwo && TargetEnvironment::RejectWeapon(pThis, pTargetTechno, pWeaponStructTwo->WeaponType, weaponIndexTwo))
+		pWeaponStructTwo = nullptr;
 
 	if (!pWeaponStructOne && !pWeaponStructTwo)
 		return -1;
@@ -384,7 +381,7 @@ int TechnoExt::ApplyForceWeaponInRange(AbstractClass* pTarget)
 	return forceWeaponIndex;
 }
 
-bool TechnoExt::MultiWeaponCanFire(TechnoClass* const pThis, AbstractClass* const pTarget, WeaponTypeClass* const pWeaponType, const bool ignoreNeverUse)
+bool TechnoExt::MultiWeaponCanFire(TechnoClass* const pThis, AbstractClass* const pTarget, WeaponTypeClass* const pWeaponType, const bool ignoreNeverUse, const int weaponIndex)
 {
 	if (!pWeaponType
 		|| (!ignoreNeverUse && pWeaponType->NeverUse)
@@ -399,7 +396,7 @@ bool TechnoExt::MultiWeaponCanFire(TechnoClass* const pThis, AbstractClass* cons
 	const auto pBulletType = pWeaponType->Projectile;
 
 	const auto pTechno = abstract_cast<TechnoClass*, true>(pTarget);
-	if (TargetEnvironment::RejectWeapon(pWeaponType, pTechno))
+	if (TargetEnvironment::RejectWeapon(pThis, pTechno, pWeaponType, weaponIndex))
 		return false;
 	const bool isInAir = pTechno ? pTechno->IsInAir() : false;
 

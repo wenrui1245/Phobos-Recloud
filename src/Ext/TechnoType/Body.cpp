@@ -367,7 +367,7 @@ int TechnoTypeExt::SelectMultiWeapon(TechnoClass* const pThis, AbstractClass* co
 
 			if (secondaryPriority)
 			{
-				if (TechnoExt::MultiWeaponCanFire(pThis, pTargetTechno, pWeapon))
+				if (TechnoExt::MultiWeaponCanFire(pThis, pTargetTechno, pWeapon, false, weaponIndex))
 					return true;
 
 				secondaryCanTargets[weaponIndex] = true;
@@ -408,7 +408,7 @@ int TechnoTypeExt::SelectMultiWeapon(TechnoClass* const pThis, AbstractClass* co
 		if (secondaryCanTargets[index])
 			continue;
 
-		if (TechnoExt::MultiWeaponCanFire(pThis, pTarget, TechnoTypeExt::GetWeaponType(pType, index, isElite)))
+		if (TechnoExt::MultiWeaponCanFire(pThis, pTarget, TechnoTypeExt::GetWeaponType(pType, index, isElite), false, index))
 			return index;
 	}
 

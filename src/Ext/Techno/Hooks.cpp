@@ -5,6 +5,7 @@
 #include <Ext/Aircraft/Body.h>
 #include <Ext/Anim/Body.h>
 #include <Ext/InfantryType/Body.h>
+#include <Ext/Infantry/Body.h>
 #include <Ext/House/Body.h>
 #include <Ext/Scenario/Body.h>
 #include <Ext/Unit/Body.h>
@@ -33,6 +34,8 @@ DEFINE_HOOK(0x6F9E50, TechnoClass_AI, 0x5)
 {
 	GET(TechnoClass*, pThis, ECX);
 
+	if (pThis->WhatAmI() == AbstractType::Infantry)
+		InfantryExt::Fetch(static_cast<InfantryClass*>(pThis))->UpdateCaptureDelay();
 	TechnoExt::Fetch(pThis)->OnEarlyUpdate();
 	Footprint::LockParkedCarrierPayload(pThis);
 

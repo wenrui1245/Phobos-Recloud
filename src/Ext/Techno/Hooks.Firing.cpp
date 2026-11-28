@@ -107,10 +107,13 @@ DEFINE_HOOK(0x6F3415, TechnoClass_WhatWeaponShouldIUse_NoAmmoWeapon, 0x5)
 	{
 		const auto& noAmmoWeapons = pTypeExt->NoAmmoWeapons;
 		const bool ignoreNeverUse = pTypeExt->NoAmmoWeapons_IgnoreNeverUse;
+		const auto target = abstract_cast<TechnoClass*>(pTarget);
 
 		for (int weaponIndex : noAmmoWeapons)
 		{
-			if (TechnoExt::MultiWeaponCanFire(pThis, pTarget, pThis->GetWeapon(weaponIndex)->WeaponType), ignoreNeverUse)
+			const auto* slot = pThis->GetWeapon(weaponIndex);
+			if (slot && !TargetEnvironment::RejectWeapon(pThis, target, slot->WeaponType, weaponIndex)
+				&& (TechnoExt::MultiWeaponCanFire(pThis, pTarget, slot->WeaponType, ignoreNeverUse, weaponIndex), ignoreNeverUse))
 			{
 				R->EAX(weaponIndex);
 				return UseWeaponIndex;
@@ -119,7 +122,8 @@ DEFINE_HOOK(0x6F3415, TechnoClass_WhatWeaponShouldIUse_NoAmmoWeapon, 0x5)
 
 		const int noAmmoWeapon = pTypeExt->NoAmmoWeapon;
 
-		if (noAmmoWeapon >= 0)
+		const auto* slot = noAmmoWeapon >= 0 ? pThis->GetWeapon(noAmmoWeapon) : nullptr;
+		if (slot && !TargetEnvironment::RejectWeapon(pThis, target, slot->WeaponType, noAmmoWeapon))
 		{
 			R->EAX(noAmmoWeapon);
 			return UseWeaponIndex;
@@ -141,7 +145,8 @@ DEFINE_HOOK(0x6F3428, TechnoClass_WhatWeaponShouldIUse_ForceWeapon, 0x6)
 	// Force weapon
 	const int forceWeaponIndex = pTypeExt->SelectForceWeapon(pThis, pTarget);
 
-	if (forceWeaponIndex >= 0)
+	const auto* forced = forceWeaponIndex >= 0 ? pThis->GetWeapon(forceWeaponIndex) : nullptr;
+	if (forced && !TargetEnvironment::RejectWeapon(pThis, abstract_cast<TechnoClass*>(pTarget), forced->WeaponType, forceWeaponIndex))
 	{
 		R->EAX(forceWeaponIndex);
 		return UseWeaponIndex;
@@ -263,9 +268,9 @@ DEFINE_HOOK(0x6F3432, TechnoClass_WhatWeaponShouldIUse_Gattling, 0xA)
 		const bool inAir = pTargetTechno->IsInAir();
 		const bool isUnderground = TargetEnvironment::IsUnderground(pTargetTechno);
 
-		auto isWeaponValid = [&](WeaponTypeClass* pWeapon)
+		auto isWeaponValid = [&](WeaponTypeClass* pWeapon, int weaponIndex)
 			{
-				if (TargetEnvironment::RejectWeapon(pWeapon, pTargetTechno))
+				if (TargetEnvironment::RejectWeapon(pThis, pTargetTechno, pWeapon, weaponIndex))
 					return false;
 				if (inAir && !pWeapon->Projectile->AA)
 					return false;
@@ -280,7 +285,7 @@ DEFINE_HOOK(0x6F3432, TechnoClass_WhatWeaponShouldIUse_Gattling, 0xA)
 
 		// check even weapon first
 
-		if (!isWeaponValid(pWeaponEven))
+		if (!isWeaponValid(pWeaponEven, evenWeaponIndex))
 		{
 			R->EAX(chosenWeaponIndex);
 			return UseWeaponIndex;
@@ -306,7 +311,7 @@ DEFINE_HOOK(0x6F3432, TechnoClass_WhatWeaponShouldIUse_Gattling, 0xA)
 
 		auto const pWeaponOdd = pThis->GetWeapon(oddWeaponIndex)->WeaponType;
 
-		if (!isWeaponValid(pWeaponOdd) || pThis->GetTechnoType()->LandTargeting == LandTargetingType::Land_Secondary)
+		if (!isWeaponValid(pWeaponOdd, oddWeaponIndex) || pThis->GetTechnoType()->LandTargeting == LandTargetingType::Land_Secondary)
 			chosenWeaponIndex = evenWeaponIndex;
 	}
 
