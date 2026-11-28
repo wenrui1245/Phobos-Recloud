@@ -90,6 +90,10 @@ This page describes all the engine features that are either new and introduced b
   - `AttachEffect.RecreationDelays` is used to determine if the effect can be recreated if it is removed completely (e.g `AttachEffect.RemoveTypes`), and if yes, how long this takes. Defaults to -1, meaning no recreation. Delay matching the position in `AttachTypes` is used for that type, or the last listed delay if not available.
     - Note that neither `InitialDelays` or `RecreationDelays` count down if the effect cannot currently be active due to `DiscardOn` condition.
 
+- `Passenger.AttachEffect.AttachTypes` on a passenger's TechnoType grants the listed effects to its transport. The passenger is the invoker, and the transport updates the effects from its passenger list. This works with preloaded passengers and with both open-topped and enclosed transports.
+  - For `Cumulative=true` effects, each passenger can grant one stack, subject to `Cumulative.MaxCount`. When a passenger leaves, its stack is removed. For `Cumulative=false` effects, one passenger-granted instance is shared until the last passenger providing it leaves. An existing instance of the same non-cumulative type occupies that type's slot.
+  - Grants are added and removed on the transport's next active update. They use the transport's target eligibility and invulnerability rules when first attached. The passenger list controls their lifetime, overriding `Duration`, `DiscardOn`, and warhead removal. Leaving the transport counts as `remove` for `ExpireWeapon.TriggerOn`.
+
 - AttachEffectTypes can be attached to objects via Warheads using `AttachEffect.AttachTypes`.
   - `AttachEffect.DurationOverrides` can be used to override the default durations. Duration matching the position in `AttachTypes` is used for that type, or the last listed duration if not available.
   - `AttachEffect.CumulativeSourceMaxCount` can be used to determine the maximum count of `Cumulative=true` effect from this source, or with no limit if `AttachEffect.CumulativeSourceMaxCount` is a negative number. Work independently from `Cumulative.MaxCount` of the effect. If the target already has `AttachEffect.CumulativeSourceMaxCount` number of the same effect from the same source applied on it, trying to attach another will refresh duration of the attached instance with shortest remaining duration.
@@ -204,6 +208,7 @@ Groups=                                            ; comma-separated list of str
 
 [SOMETECHNO]                                       ; TechnoType
 AttachEffect.AttachTypes=                          ; List of AttachEffectTypes
+Passenger.AttachEffect.AttachTypes=                ; List of AttachEffectTypes granted to the transport
 AttachEffect.DurationOverrides=                    ; integer - duration overrides (comma-separated) for AttachTypes in order from first to last.
 AttachEffect.Delays=                               ; integer - delays (comma-separated) for AttachTypes in order from first to last.
 AttachEffect.InitialDelays=                        ; integer - initial delays (comma-separated) for AttachTypes in order from first to last.
