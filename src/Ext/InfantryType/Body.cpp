@@ -26,7 +26,7 @@ void InfantryTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	this->Engineer_CaptureProgress_SHP.Read(exINI, pSection, "Engineer.CaptureProgress.SHP");
 	this->Engineer_CaptureProgress_Palette.LoadFromINI(pINI, pSection, "Engineer.CaptureProgress.Palette");
 	if (this->Engineer_CaptureDelay > 0)
-		Debug::Log("EngineerCapture: revision=3 type=%s delay=%d movement=walk custom-progress=%d.\n", pSection, this->Engineer_CaptureDelay.Get(), this->Engineer_CaptureProgress_SHP.Get() != nullptr);
+		Debug::Log("EngineerCapture: revision=4 type=%s delay=%d movement=walk custom-progress=%d.\n", pSection, this->Engineer_CaptureDelay.Get(), this->Engineer_CaptureProgress_SHP.Get() != nullptr);
 
 	const auto pArtINI = &CCINIClass::INI_Art;
 	INI_EX exArtINI(pArtINI);

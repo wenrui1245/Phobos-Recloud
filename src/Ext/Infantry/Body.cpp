@@ -9,6 +9,21 @@
 
 InfantryExt::ExtContainer InfantryExt::ExtMap;
 
+namespace
+{
+void ReportCaptureState(InfantryClass* unit, BuildingClass* target, const char* phase, int remaining)
+{
+	static unsigned reports = 0;
+	if (reports >= 128)
+		return;
+	++reports;
+	Debug::Log("EngineerCapture: revision=4 phase=%s unit=%u target=%u frame=%d remaining=%d human=%d mission=%d queued=%d destination-match=%d target-match=%d sequence=%d.\n",
+		phase, unit->UniqueID, target->UniqueID, Unsorted::CurrentFrame, remaining,
+		unit->Owner->IsControlledByHuman(), int(unit->CurrentMission), int(unit->QueuedMission),
+		unit->Destination == target, unit->Target == target, int(unit->SequenceAnim));
+}
+}
+
 void InfantryExt::ResetCaptureDelay()
 {
 	this->EngineerCaptureTarget = nullptr;
@@ -36,15 +51,17 @@ void InfantryExt::UpdateCaptureDelay()
 		|| (unit->Target && unit->Target != target) || (unit->Destination && unit->Destination != target)
 		|| (!unit->Target && !unit->Destination))
 	{
+		ReportCaptureState(unit, target, "cancel-order", this->EngineerCaptureTimer.GetTimeLeft());
 		this->ResetCaptureDelay();
 		return;
 	}
 	if (!unit->IsAlive || unit->Health <= 0 || unit->InLimbo || !unit->Type->Engineer
 		|| this->GetTypeExtData()->Engineer_CaptureDelay <= 0 || !target->IsAlive || target->Health <= 0 || target->InLimbo
 		|| unit->Owner != this->EngineerCaptureOwner || target->Owner != this->EngineerCaptureTargetOwner
-		|| unit->Owner->IsAlliedWith(target->Owner) || unit->Deactivated || unit->IsUnderEMP()
+		|| unit->Owner->IsAlliedWith(target->Owner) || !unit->Locomotor || unit->Deactivated || unit->IsUnderEMP()
 		|| unit->IsImmobilized || unit->TemporalTargetingMe || unit->BeingWarpedOut || FootExt::CannotMove(unit, true))
 	{
+		ReportCaptureState(unit, target, "cancel-invalid", this->EngineerCaptureTimer.GetTimeLeft());
 		this->ResetCaptureDelay();
 		if (unit->IsAlive && unit->Health > 0 && !unit->InLimbo)
 		{
@@ -52,6 +69,21 @@ void InfantryExt::UpdateCaptureDelay()
 			unit->SetDestination(nullptr, false);
 			unit->QueueMission(Mission::Guard, true);
 		}
+		return;
+	}
+	if (this->EngineerCaptureTimer.Completed())
+	{
+		// Stop marks this order as released, while keeping the target/completion
+		// token. It is serialized already and prevents restarting the countdown.
+		this->EngineerCaptureTimer.Stop();
+		ReportCaptureState(unit, target, "complete-resume", 0);
+		if (unit->SequenceAnim == Sequence::Idle1 || unit->SequenceAnim == Sequence::Idle2
+			|| unit->SequenceAnim == Sequence::WetIdle1 || unit->SequenceAnim == Sequence::WetIdle2)
+			unit->PlayAnim(Sequence::Ready, true);
+		// Re-enter the native infantry destination path once, as the existing
+		// temporary-immobilization recovery does. Let it choose the entrance;
+		// never replace this with a Move mission or a building-centre Move_To.
+		unit->SetDestination(target, false);
 	}
 }
 
@@ -90,8 +122,9 @@ bool InfantryExt::HoldForCaptureDelay()
 	if (reports < 64)
 	{
 		++reports;
-		Debug::Log("EngineerCapture: revision=3 start unit=%u target=%u delay=%d.\n", unit->UniqueID, target->UniqueID, delay);
+		Debug::Log("EngineerCapture: revision=4 start unit=%u target=%u delay=%d.\n", unit->UniqueID, target->UniqueID, delay);
 	}
+	ReportCaptureState(unit, target, "start", delay);
 	return true;
 }
 

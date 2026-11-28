@@ -39,3 +39,8 @@ DEFINE_EXPORT(HRESULT, ConvertToType_Phobos, FootClass* pThis, TechnoTypeClass* 
 DEFINE_EXPORT(HRESULT, RegisterCalculateExtraThreatCallback, CalculateExtraThreatCallback callback);
 
 DEFINE_EXPORT(HRESULT, RegisterCalculateSightCallback, CalculateSightCallback callback);
+
+class AircraftClass;
+// V1: coordinates use leptons; S_OK applies the type override, S_FALSE keeps edge.
+DEFINE_EXPORT(HRESULT, Phobos_ApplyAircraftSpawnDistance, AircraftClass*,
+	const CoordStruct*, const CoordStruct*, CoordStruct*);

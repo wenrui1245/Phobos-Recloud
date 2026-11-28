@@ -1,5 +1,13 @@
 # 工程师入口外读条（Phobos-Mix）
 
+## 修订4：读条完成后恢复原生进入
+
+反馈日志包含两名工程师对同一目标启动180帧等待的记录，但修订3没有完成或取消记录，不能据此确认是任务被改写、失能还是完成后停滞。已确认实现缺口是完成时仅解除Walk::Process拦截，未对强制Idle和暂停期间的原生目的地状态执行一次性恢复。
+
+完成时先用CDTimerClass::Stop作为释放标记，保留EngineerCaptureTarget和Total，随后退出本功能播放的Idle并调用SetDestination(target,false)。复用原生步兵目的地处理选择入口，不直接Move_To建筑中心，不改为Move任务，不替AI重选建筑，也不绕过占领资格。原生目的地接口为步兵虚表480h（51AA40），与现有FootExt::HandleTemporaryImmobilization恢复目的地相同。新命令、归属或失能检查仍先于完成恢复；同一个目标只恢复一次。已有序列化字段足以保存此状态，不新增存档字段或Hook。
+
+revision=4记录start、complete-resume、cancel-order、cancel-invalid，附对象ID、逻辑帧、人类控制标记、当前/排队任务、目标/目的地匹配和动画序列，状态日志每进程最多128条。恢复处理已经构建，AI进入是否恢复仍由游戏验证；不能将这处候选修复当作已在原反馈场景复现验证的根因。
+
 配置与状态分别位于 Ext/InfantryType 和 Ext/Infantry。Engineer.CaptureDelay 默认0，仅当Engineer=yes、Capture任务、非盟友且目标不是桥梁维修小屋时启用入口等待。它不重写Ares的多工程师公式，不接管驻军或渗透，不改变占领资格。
 
 复用标准Walk::Process，新增75AC85..75AC89入口，原指令是PUSH 1 / LEA ECX,[ESI-4]（6A018D4EFC）。ESI为ILocomotion指针。倒计时期间将EAX恢复为[ESI]中的虚表指针，再跳至75AC99，保留该函数原有PUSH ESI / Is_Moving调用及POP ESI/RET 4，跳过本帧移动控制与wake发射，不跳过工程师的其他AI。正常路径重放原指令后继续75AEC0移动控制。已有wake入口覆盖75AC93..75AC98，包含75AC97的MOV EAX,[ESI]，因此不能直接跳至75AC97；入口和所有直接续执行地址均须核对现有补丁范围。
