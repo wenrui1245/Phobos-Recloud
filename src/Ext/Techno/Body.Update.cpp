@@ -1175,7 +1175,14 @@ void TechnoExt::UpdateAttachEffects()
 		if (!pPassenger->IsAlive || pPassenger->Health <= 0)
 			continue;
 
-		for (auto const pType : TechnoExt::Fetch(pPassenger)->TypeExtData->PassengerAttachEffects)
+		// 对齐 PointerGotInvalid / SetPassengerInvoker 的防御风格：
+		// 特殊窗口期（如读档）乘客扩展可能未就绪，TryFetch 为空时直接跳过该乘客
+		auto const pPassengerExt = TechnoExt::TryFetch(pPassenger);
+
+		if (!pPassengerExt)
+			continue;
+
+		for (auto const pType : pPassengerExt->TypeExtData->PassengerAttachEffects)
 		{
 			if (pType)
 				passengerGrants.emplace_back(pType, pPassenger);
